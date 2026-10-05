@@ -1,36 +1,57 @@
 ((doctest_block) @injection.content
   (#set! injection.language "python"))
 
-; Directives with nested content without arguments nor options
+; Directives whose arguments, options, and content can be parsed as a single
+; RST body. An exception is made for cases where the directive line continues
+; onto the next line. Missing indentation for the first line must be handled
+; separately in the next two patterns.
 ((directive
   name: (type) @_type
   body: (body) @injection.content)
-  (#set! injection.language "rst")
   (#any-of? @_type
     "attention" "caution" "danger" "error" "hint" "important" "note" "tip" "warning" "admonition"
     "line-block" "parsed-literal" "epigraph" "highlights" "pull-quote" "compound" "header" "footer"
-    "meta" "replace"))
+    "meta" "replace" "topic" "sidebar" "table" "list-table")
+  ; Unless text on the directive line continues onto the next line (see below)
+  (#not-lua-match? @injection.content "^%S[^\n]*\n[ \t]*%S")
+  (#set! injection.language "rst")
+  (#set! injection.include-children))
 
-; Directives with nested content without arguments, but with options
+; Case where the directive line continues onto the next line. This handles the
+; first line.
 ((directive
   name: (type) @_type
   body: (body
-    (options)
-    (content) @injection.content))
-  (#set! injection.language "rst")
+    (arguments) @injection.content) @_body)
   (#any-of? @_type
     "attention" "caution" "danger" "error" "hint" "important" "note" "tip" "warning" "admonition"
-    "line-block" "parsed-literal" "compound"))
+    "line-block" "parsed-literal" "epigraph" "highlights" "pull-quote" "compound" "header" "footer"
+    "meta" "replace" "topic" "sidebar" "table" "list-table")
+  (#lua-match? @_body "^%S[^\n]*\n[ \t]*%S")
+  (#set! injection.language "rst"))
 
-; Directives with nested content with arguments and options
+; Case where the directive line continues onto the next line. This handles all
+; content lines below it.
+((directive
+  name: (type) @_type
+  body: (body
+    (content) @injection.content) @_body)
+  (#any-of? @_type
+    "attention" "caution" "danger" "error" "hint" "important" "note" "tip" "warning" "admonition"
+    "line-block" "parsed-literal" "epigraph" "highlights" "pull-quote" "compound" "header" "footer"
+    "meta" "replace" "topic" "sidebar" "table" "list-table")
+  (#lua-match? @_body "^%S[^\n]*\n[ \t]*%S")
+  ; Skip the content if its first paragraph also wraps; it starts mid-line too
+  (#not-lua-match? @injection.content "^[^\n]*\n[ \t]*%S")
+  (#set! injection.language "rst"))
+
+; Directives whose contents can be parsed as RST, but arguments are not RST.
 ((directive
   name: (type) @_type
   body: (body
     (content) @injection.content))
   (#set! injection.language "rst")
-  (#any-of? @_type
-    "figure" "topic" "sidebar" "container" "table" "list-table" "class" "role"
-    "restructuredtext-test-directive"))
+  (#any-of? @_type "figure" "container" "class" "role" "restructuredtext-test-directive"))
 
 ; Special directives
 ((directive
